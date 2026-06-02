@@ -1,7 +1,6 @@
 /**
  * Boston Housing Price Prediction - Grade A
- * Pearson correlation -> Top 4 features -> Multiple Linear Regression
- * Interactive prediction mode + CSV export for matplotlib.
+ * Pearson -> Top4 -> GD -> interactive predict -> auto plot
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,15 +42,13 @@ double rmse(const double *weights, const double *X, const double *y,
             int rows, int n);
 void pearson_corr(int *top_indices, int top_k);
 void print_corr_and_top(const int *indices, int k, FILE *corr_fp);
-void predict_loop(const double *weights, const int *top_idx, int n);
-
-/* ================================================================ */
+void predict_loop(const double *weights, const int *top_idx, int n, FILE *user_fp);
 
 int parse_data(const char *filename) {
     FILE *fp = fopen(filename, "r");
     if (!fp) { fprintf(stderr, "Cannot open %s\n", filename); return -1; }
     char line[MAX_LINE];
-    fgets(line, sizeof(line), fp); /* skip header */
+    fgets(line, sizeof(line), fp);
     while (fgets(line, sizeof(line), fp)) {
         if (n_samples >= MAX_SAMPLES) break;
         House *h = &data[n_samples];
@@ -96,7 +93,7 @@ void normalize_data(void) {
         data[i].target = (r > 1e-12)
             ? (data[i].target - target_scaler.min) / r : 0.0;
     }
-    printf("Min-Max normalization done\n");
+    printf("Normalization done\n");
 }
 
 void unscale_target(double val, double *out) {
@@ -127,7 +124,6 @@ void grad_desc(const double *X, const double *y, int m, int n,
         for (int j = 0; j <= n; j++)
             weights[j] -= (lr / m) * grad[j];
         free(grad);
-        /* log every 100 epochs */
         if (log && e % 100 == 0) {
             double loss = 0;
             for (int i = 0; i < m; i++) {
@@ -219,19 +215,18 @@ void print_corr_and_top(const int *indices, int k, FILE *corr_fp) {
     printf("\n");
 }
 
-/* ---- Interactive prediction ---- */
-void predict_loop(const double *weights, const int *top_idx, int n) {
+void predict_loop(const double *weights, const int *top_idx, int n, FILE *user_fp) {
     printf("\n");
     printf("========================================\n");
     printf("  Interactive Prediction Mode\n");
-    printf("  Enter feature values to predict MEDV\n");
-    printf("  (type 'q' to quit)\n");
+    printf("  Enter feature values (q to quit)\n");
     printf("========================================\n");
 
     char buf[256];
+    char feat_buf[512];
     while (1) {
         double raw[4], scaled[4];
-        printf("\nEnter values for: ");
+        printf("\nEnter: ");
         for (int j = 0; j < n; j++)
             printf("%s%s", feat_names[top_idx[j]], j < n - 1 ? ", " : "");
         printf("\n> ");
@@ -242,9 +237,13 @@ void predict_loop(const double *weights, const int *top_idx, int n) {
         int got = sscanf(buf, "%lf %lf %lf %lf",
                          &raw[0], &raw[1], &raw[2], &raw[3]);
         if (got < n) {
-            printf("Need %d numbers. Try again.\n", n);
+            printf("Need %d numbers.\n", n);
             continue;
         }
+
+        snprintf(feat_buf, sizeof(feat_buf),
+                 "%.4f,%.4f,%.4f,%.4f",
+                 raw[0], raw[1], raw[2], raw[3]);
 
         for (int j = 0; j < n; j++)
             scaled[j] = scale_feature(top_idx[j], raw[j]);
@@ -254,18 +253,20 @@ void predict_loop(const double *weights, const int *top_idx, int n) {
         unscale_target(pred_norm, &pred_raw);
 
         printf("Predicted MEDV = $%.2fk\n", pred_raw);
-    }
-    printf("Exiting prediction mode.\n");
-}
 
-/* ================================================================ */
+        if (user_fp) {
+            fprintf(user_fp, "%s,%.2f\n", feat_buf, pred_raw);
+            fflush(user_fp);
+        }
+    }
+    printf("Exiting prediction.\n");
+}
 
 int main(void) {
     srand((unsigned)time(NULL));
 
     printf("========================================\n");
     printf("  Boston Housing - Grade A Prediction\n");
-    printf("  Top-4 features + Multiple Linear Reg.\n");
     printf("========================================\n\n");
 
     if (parse_data("housing-price.txt") < 0) return 1;
@@ -284,7 +285,6 @@ int main(void) {
     if (corr_fp) fprintf(corr_fp, "feature,r\n");
     print_corr_and_top(top_idx, 4, corr_fp);
     if (corr_fp) fclose(corr_fp);
-    printf("Correlation data saved to corr.csv\n");
 
     int sel_n = 4;
     double *train_X = (double *)malloc(train_sz * sel_n * sizeof(double));
@@ -308,7 +308,6 @@ int main(void) {
     if (loss_fp) fprintf(loss_fp, "epoch,mse\n");
     grad_desc(train_X, train_y, train_sz, sel_n, weights, 0.01, 10000, loss_fp);
     if (loss_fp) fclose(loss_fp);
-    printf("Loss curve data saved to loss.csv\n");
 
     double train_rmse_norm = rmse(weights, train_X, train_y, train_sz, sel_n);
     double test_rmse_norm  = rmse(weights, test_X,  test_y,  test_sz,  sel_n);
@@ -317,19 +316,34 @@ int main(void) {
     unscale_target(test_rmse_norm,  &test_rmse_raw);
 
     printf("\n========================================\n");
-    printf("  Grade A Evaluation\n");
+    printf("  Evaluation\n");
     printf("========================================\n");
-    printf("  Weights:\n");
-    printf("    bias     = %+.6f\n", weights[0]);
+    printf("  bias = %+.6f\n", weights[0]);
     for (int j = 0; j < sel_n; j++)
-        printf("    w_%-6s = %+.6f\n", feat_names[top_idx[j]], weights[j + 1]);
-    printf("  Train RMSE: %.4f (norm) / $%.2fk\n",
-           train_rmse_norm, train_rmse_raw);
-    printf("  Test  RMSE: %.4f (norm) / $%.2fk\n",
-           test_rmse_norm, test_rmse_raw);
+        printf("  w_%-6s = %+.6f\n", feat_names[top_idx[j]], weights[j + 1]);
+    printf("  Train RMSE: $%.2fk  |  Test RMSE: $%.2fk\n",
+           train_rmse_raw, test_rmse_raw);
     printf("========================================\n");
 
-    /* write prediction vs true CSV */
+    /* write model params for Python plotting */
+    FILE *param_fp = fopen("model_params.csv", "w");
+    if (param_fp) {
+        fprintf(param_fp, "param,value\n");
+        fprintf(param_fp, "bias,%.6f\n", weights[0]);
+        for (int j = 0; j < sel_n; j++)
+            fprintf(param_fp, "w_%s,%.6f\n", feat_names[top_idx[j]], weights[j+1]);
+        for (int j = 0; j < sel_n; j++)
+            fprintf(param_fp, "min_%s,%.4f\n", feat_names[top_idx[j]],
+                    feature_scaler[top_idx[j]].min);
+        for (int j = 0; j < sel_n; j++)
+            fprintf(param_fp, "max_%s,%.4f\n", feat_names[top_idx[j]],
+                    feature_scaler[top_idx[j]].max);
+        fprintf(param_fp, "min_MEDV,%.4f\n", target_scaler.min);
+        fprintf(param_fp, "max_MEDV,%.4f\n", target_scaler.max);
+        fclose(param_fp);
+    }
+
+    /* write test set predictions */
     FILE *pred_fp = fopen("pred.csv", "w");
     if (pred_fp) fprintf(pred_fp, "true_norm,pred_norm,true_k,pred_k\n");
     for (int i = 0; i < test_sz; i++) {
@@ -341,9 +355,18 @@ int main(void) {
             test_y[i], pred_norm, true_raw, pred_raw);
     }
     if (pred_fp) fclose(pred_fp);
-    printf("Prediction data saved to pred.csv\n");
 
-    predict_loop(weights, top_idx, sel_n);
+    /* open user prediction log */
+    FILE *user_fp = fopen("user_pred.csv", "w");
+    if (user_fp) fprintf(user_fp, "LSTAT,RM,PTRATIO,INDUS,pred_k\n");
+
+    predict_loop(weights, top_idx, sel_n, user_fp);
+
+    if (user_fp) fclose(user_fp);
+
+    /* auto-generate plot */
+    printf("\nGenerating pred_vs_true.png ...\n");
+    system("python plot_results.py");
 
     free(train_X); free(train_y);
     free(test_X);  free(test_y);

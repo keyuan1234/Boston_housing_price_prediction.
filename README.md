@@ -1,151 +1,162 @@
-# Boston Housing Price Prediction - User Guide
+# 波士顿房价预测 — 使用指南
 
-## Project Overview
+## 项目概述
 
-Grade-A Boston housing price prediction using C language.
-- Dataset: 506 samples, 13 features + 1 target (MEDV)
-- Algorithm: Multiple Linear Regression with Gradient Descent
-- Feature selection: Top 4 by Pearson correlation
-- Metric: RMSE
+A等级波士顿房价预测，C语言实现。
+- 数据集：506条样本，13个特征 + 1个目标（MEDV）
+- 算法：多元线性回归 + 梯度下降
+- 特征筛选：皮尔逊相关系数 Top 4
+- 评估指标：RMSE
 
-## Requirements
+## 环境要求
 
-| Component | Details |
-|-----------|---------|
-| C Compiler | GCC 8.1+ (MinGW-W64) |
-| Python | 3.7+ (visualization only) |
-| Python pkgs | matplotlib, numpy |
+| 组件 | 说明 |
+|------|------|
+| C编译器 | GCC 8.1+（MinGW-W64） |
+| Python | 3.7+（仅可视化） |
+| Python包 | matplotlib, numpy |
 
-Install Python dependencies:
+安装 Python 依赖：
 ```
 pip install matplotlib numpy
 ```
 
-## Files
+## 文件说明
 
-| File | Purpose |
-|------|---------|
-| `boston_housing.c` | Source code |
-| `housing-price.txt` | Dataset (506 x 14) |
-| `plot_results.py` | Visualization script |
-| `boston_housing.exe` | Compiled executable |
+| 文件 | 用途 |
+|------|------|
+| `boston_housing.c` | 源代码 |
+| `housing-price.txt` | 数据集（506 x 14） |
+| `plot_results.py` | 可视化脚本 |
+| `boston_housing.exe` | 编译好的可执行文件 |
 
-Generated at runtime:
-| File | Content |
-|------|---------|
-| `loss.csv` | Training loss curve (epoch, mse) |
-| `corr.csv` | 13 feature correlations (feature, r) |
-| `pred.csv` | Test set predictions (true, pred) |
-| `loss_curve.png` | Loss curve chart |
-| `corr_bar.png` | Correlation bar chart |
-| `pred_vs_true.png` | Predicted vs true scatter plot |
+运行时自动生成：
+| 文件 | 内容 |
+|------|------|
+| `loss.csv` | 训练损失曲线数据（epoch, mse） |
+| `corr.csv` | 13个特征的皮尔逊相关系数（feature, r） |
+| `model_params.csv` | 模型参数：权重、偏置、各特征及MEDV的最小/最大值 |
+| `pred.csv` | 测试集预测结果（true_k, pred_k） |
+| `user_pred.csv` | 用户交互预测记录（LSTAT, RM, PTRATIO, INDUS, pred_k） |
+| `pred_vs_true.png` | 2x2 子图：四个Top4特征 vs MEDV 的关系图 |
 
-## Compile
+## 编译
 
 ```
 gcc -O2 -Wall -o boston_housing.exe boston_housing.c -lm
 ```
 
-Flags:
-- `-O2`: optimization level
-- `-lm`: link math library
+编译选项：
+- `-O2`：优化等级
+- `-lm`：链接数学库
 
-## Run
+## 运行
 
-### 1. Train Model
+### 1. 训练 + 交互预测（一键完成）
 
 ```
 .\boston_housing.exe
 ```
 
-Program executes:
-1. Load `housing-price.txt`
-2. Min-Max normalization
-3. Compute Pearson correlation for all 13 features
-4. Select Top 4: **LSTAT, RM, PTRATIO, INDUS**
-5. Gradient descent training (lr=0.01, epochs=10000)
-6. Print weights and RMSE
-7. Auto-save `loss.csv`, `corr.csv`, `pred.csv`
-8. Enter interactive prediction mode
+程序依次执行：
+1. 加载 `housing-price.txt`
+2. Min-Max 归一化
+3. 计算13个特征与MEDV的皮尔逊相关系数
+4. 自动筛选 Top 4：**LSTAT, RM, PTRATIO, INDUS**
+5. 梯度下降训练（学习率=0.01，迭代=10000轮）
+6. 输出模型权重和RMSE
+7. 保存 `loss.csv`、`corr.csv`、`model_params.csv`、`pred.csv`
+8. 进入交互预测模式
+9. 退出预测后自动调用 Python 生成 `pred_vs_true.png`
 
-### 2. Interactive Prediction
+### 2. 交互预测
 
-After training, the program prompts for feature values:
+训练完成后，程序等待输入特征值：
 
 ```
-Enter values for: LSTAT, RM, PTRATIO, INDUS
+Enter: LSTAT, RM, PTRATIO, INDUS
 > 5.0 6.5 17.0 7.0
-Predicted MEDV = $23.15k
+Predicted MEDV = $28.62k
 ```
 
-Enter 4 numbers separated by spaces, press Enter to get prediction.
-Type `q` to quit.
+输入4个数字（空格分隔），回车即可获取预测房价。输入 `q` 退出。
 
-### 3. Non-interactive Run (data only)
+每次成功预测会自动记录到 `user_pred.csv`。
+
+### 3. 自动出图
+
+输入q退出预测模式后，程序自动调用 Python 生成 `pred_vs_true.png`——一张 2x2 子图：
+
+- **灰色散点**：原始数据集中各特征与MEDV的分布
+- **蓝色曲线**：二次多项式拟合线，展示特征与房价的非线性趋势
+- **红色菱形**：用户本次输入的所有预测点（标注在对应特征子图上）
+
+### 4. 非交互运行（仅生成数据，不预测）
 
 ```
 echo q | .\boston_housing.exe
 ```
 
-## Visualization
+## 手动绘图
 
 ```
 python plot_results.py
 ```
 
-Generates 3 PNG charts:
+生成 `pred_vs_true.png`。若存在 `user_pred.csv`，图上会用红色菱形标出用户预测点。
 
-| Chart | Description |
-|-------|-------------|
-| `loss_curve.png` | MSE vs epoch training curve |
-| `corr_bar.png` | Pearson r bar chart (red=negative, blue=positive) |
-| `pred_vs_true.png` | True vs predicted scatter plot with RMSE & R^2 |
+## 结果摘要
 
-## Results Summary
-
-### Correlation Ranking (by |r|)
+### 相关系数排名（按 |r| 降序）
 
 ```
-LSTAT    -0.7377   Low-income population % (strongest negative)
-RM       +0.6954   Average rooms per dwelling (strongest positive)
-PTRATIO  -0.5078   Pupil-teacher ratio
-INDUS    -0.4837   Non-retail business acres
-TAX      -0.4685   Property tax rate
-NOX      -0.4273   Nitric oxide concentration
-CRIM     -0.3883   Crime rate
-RAD      -0.3816   Highway accessibility index
-AGE      -0.3770   Old housing proportion
-ZN       +0.3604   Residential land proportion
-B        +0.3335   Black population metric
-DIS      +0.2499   Distance to employment centers
-CHAS     +0.1753   Charles River adjacency
+LSTAT    -0.7377   低收入人群比例（最强负相关）
+RM       +0.6954   住宅平均房间数（最强正相关）
+PTRATIO  -0.5078   师生比例
+INDUS    -0.4837   非零售商业用地比例
+TAX      -0.4685   每万美元财产税率
+NOX      -0.4273   一氧化氮浓度
+CRIM     -0.3883   犯罪率
+RAD      -0.3816   高速公路便利指数
+AGE      -0.3770   老旧住房比例
+ZN       +0.3604   住宅用地比例
+B        +0.3335   黑人比例指标
+DIS      +0.2499   到就业中心距离
+CHAS     +0.1753   是否临近查尔斯河
 ```
 
-### Model Weights
+### 模型权重
 
 ```
-bias      = +0.364
-w_LSTAT   = -0.430    (higher low-income % -> lower price)
-w_RM      = +0.553    (more rooms -> higher price)
-w_PTRATIO = -0.203    (higher ratio -> lower price)
-w_INDUS   = -0.020    (more non-retail -> slightly lower)
+偏置 b    = +0.364
+w_LSTAT   = -0.430    （低收入比例越高 → 房价越低）
+w_RM      = +0.553    （房间数越多 → 房价越高）
+w_PTRATIO = -0.203    （师生比越高 → 房价越低）
+w_INDUS   = -0.020    （非零售用地越多 → 房价略低）
 ```
 
-### Evaluation
+### 评估结果
 
-| Metric | Train | Test |
-|--------|:-----:|:----:|
-| RMSE (norm) | 0.117 | 0.112 |
-| RMSE ($k) | 10.26 | 10.03 |
+| 指标 | 训练集 | 测试集 |
+|------|:------:|:------:|
+| RMSE（归一化） | 0.117 | 0.112 |
+| RMSE（$k） | 10.26 | 10.03 |
 
-## Troubleshooting
+## 常见问题
 
-**"Cannot open housing-price.txt"**
-Put `housing-price.txt` in the same directory as the executable.
-If running from `output\`: `copy ..\housing-price.txt .`
+**提示 "Cannot open housing-price.txt"**
+将 `housing-price.txt` 放在执行文件同目录下。
 
-**"No module named 'matplotlib'"**
-Run: `pip install matplotlib numpy`
+**提示 "No module named 'matplotlib'"**
+```
+pip install matplotlib numpy
+```
 
-**CSV file garbled**
-All output is pure ASCII, no encoding issues.
+**自动出图失败**
+确认 Python 已安装且在 PATH 中，matplotlib、numpy 可用：
+```
+python -c "import matplotlib; import numpy"
+```
+
+**CSV 文件乱码**
+所有输出均为纯 ASCII 编码，无编码问题。
